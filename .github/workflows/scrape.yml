@@ -33,9 +33,9 @@ jobs:
           REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
           REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
           USER_AGENT: ${{ secrets.USER_AGENT }}
-          LIMIT_PER_SUB: "20"
-          SLEEP_BETWEEN_CALLS: "1.6"
-          COMMENTS_LIMIT: "60"
+          LIMIT_PER_SUB: "5"
+          SLEEP_BETWEEN_CALLS: "0.5"
+          COMMENTS_LIMIT: "10"
         run: |
           python scraper.py
           echo "List data dir after scrape:"
