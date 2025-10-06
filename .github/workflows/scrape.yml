@@ -1,12 +1,17 @@
 name: Scrape Reddit Top (Last 7 Days)
 
 on:
-  workflow_dispatch: {}        # lets you run manually anytime
+  workflow_dispatch: {}        # manual runs
   schedule:
-    # 🔁 Run every day at 12:00 UTC (8:00 AM ET)
+    # 🔁 Run every day at 12:00 UTC (~8:00 AM ET)
     - cron: "0 12 * * *"
-    # 🕗 Run every Friday at 12:50 UTC (8:50 AM ET) so GPT has fresh data for 9 AM summary
+    # 🕗 Run Fridays at 12:50 UTC (~8:50 AM ET) so data is fresh for 9 AM ET summary
     - cron: "50 12 * * FRI"
+
+# Prevent overlapping runs (e.g., long run overlaps next schedule)
+concurrency:
+  group: reddit-scrape
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -22,6 +27,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: "pip"
 
       - name: Install deps
         run: pip install -r requirements.txt
@@ -31,8 +37,9 @@ jobs:
           REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
           REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
           USER_AGENT: ${{ secrets.USER_AGENT }}
-          LIMIT_PER_SUB: "20"
-          SLEEP_BETWEEN_CALLS: "1.6"
+          LIMIT_PER_SUB: "20"           # you can tune to 15 if you add more subs
+          SLEEP_BETWEEN_CALLS: "1.6"    # safe pace; 1.4–1.6 recommended at LIMIT=20
+          COMMENTS_LIMIT: "60"          # optional: add this env if you support it in scraper.py
         run: python scraper.py
 
       - name: Commit & push data
@@ -42,3 +49,60 @@ jobs:
           git add data/*.json
           git commit -m "Update scraped feed" || echo "No changes to commit"
           git push
+
+      - name: Upload latest.json and archive to Google Drive
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+        run: |
+          python - <<'PYCODE'
+import os, json, pathlib, datetime as dt
+from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
+
+FOLDER_ID = os.environ["GDRIVE_FOLDER_ID"]
+SA_INFO = json.loads(os.environ["GCP_SA_KEY"])
+SCOPES = ["https://www.googleapis.com/auth/drive"]
+creds = Credentials.from_service_account_info(SA_INFO, scopes=SCOPES)
+drive = build("drive", "v3", credentials=creds)
+
+DATA_DIR = pathlib.Path("data")
+LATEST = DATA_DIR / "latest.json"
+if not LATEST.exists():
+    raise SystemExit("latest.json not found")
+
+# Derive archive name from scraped_at_utc or today's date
+try:
+    scraped_at = json.loads(LATEST.read_text()).get("scraped_at_utc")
+except Exception:
+    scraped_at = None
+date_str = (scraped_at or dt.datetime.utcnow().strftime("%Y-%m-%d")).split("T")[0]
+archive_name = f"reddit_top_week_{date_str}.json"
+
+def find_file_by_name(name, folder_id):
+    q = f"name = '{name.replace(\"'\",\"\\'\")}' and '{folder_id}' in parents and trashed = false"
+    res = drive.files().list(q=q, fields="files(id,name)").execute()
+    files = res.get("files", [])
+    return files[0]["id"] if files else None
+
+def upload_or_update(local_path, remote_name, folder_id):
+    file_id = find_file_by_name(remote_name, folder_id)
+    media = MediaFileUpload(str(local_path), mimetype="application/json", resumable=False)
+    if file_id:
+        return drive.files().update(fileId=file_id, media_body=media).execute()
+    else:
+        file_metadata = {"name": remote_name, "parents": [folder_id]}
+        return drive.files().create(body=file_metadata, media_body=media, fields="id").execute()
+
+# 1) Overwrite/create latest.json
+upload_or_update(LATEST, "latest.json", FOLDER_ID)
+
+# 2) Create dated archive if not already present
+if not find_file_by_name(archive_name, FOLDER_ID):
+    media = MediaFileUpload(str(LATEST), mimetype="application/json", resumable=False)
+    drive.files().create(body={"name": archive_name, "parents": [FOLDER_ID]},
+                         media_body=media, fields="id").execute()
+
+print("Uploaded latest.json and archived", archive_name, "to Drive.")
+PYCODE
