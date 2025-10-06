@@ -1,6 +1,5 @@
-# scripts/upload_to_drive.py
 import os, json, pathlib, datetime as dt
-from google.oauth2.service_account import Credentials
+from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
@@ -9,14 +8,17 @@ LATEST = DATA_DIR / "latest.json"
 if not LATEST.exists():
     raise SystemExit("latest.json not found (scraper may have failed)")
 
-# Build Drive client from service account key in env
-sa_info = json.loads(os.environ["GCP_SA_KEY"])
-scopes = ["https://www.googleapis.com/auth/drive"]
-creds = Credentials.from_service_account_info(sa_info, scopes=scopes)
+# Load credentials from GitHub Secrets
+client_secret_json = json.loads(os.environ["GDRIVE_CLIENT_SECRET_JSON"])
+token_json = json.loads(os.environ["GDRIVE_TOKEN_JSON"])
+
+creds = Credentials.from_authorized_user_info(
+    token_json, scopes=["https://www.googleapis.com/auth/drive.file"]
+)
 drive = build("drive", "v3", credentials=creds)
 folder_id = os.environ["GDRIVE_FOLDER_ID"]
 
-# Archive filename from scraped_at_utc or today
+# Generate archive file name
 try:
     scraped_at = json.loads(LATEST.read_text()).get("scraped_at_utc")
 except Exception:
@@ -25,21 +27,18 @@ date_str = (scraped_at or dt.datetime.utcnow().strftime("%Y-%m-%d")).split("T")[
 archive_name = f"reddit_top_week_{date_str}.json"
 
 def find_file(name, parent_id):
-    safe_name = name.replace("'", "\\'")
-    q = f"name = '{safe_name}' and '{parent_id}' in parents and trashed = false"
+    q = f"name = '{name}' and '{parent_id}' in parents and trashed = false"
     res = drive.files().list(
         q=q,
-        fields="files(id,name,driveId,parents)",
-        includeItemsFromAllDrives=True,
-        supportsAllDrives=True,
-        corpora="allDrives"
+        fields="files(id,name)",
+        supportsAllDrives=True
     ).execute()
     files = res.get("files", [])
     return files[0]["id"] if files else None
 
-def upload_or_update(local_path, name, parent_id, mime="application/json"):
+def upload_or_update(local_path, name, parent_id):
     file_id = find_file(name, parent_id)
-    media = MediaFileUpload(str(local_path), mimetype=mime, resumable=False)
+    media = MediaFileUpload(str(local_path), mimetype="application/json", resumable=False)
     if file_id:
         drive.files().update(fileId=file_id, media_body=media).execute()
         print(f"Updated {name}")
@@ -49,19 +48,11 @@ def upload_or_update(local_path, name, parent_id, mime="application/json"):
             media_body=media,
             fields="id"
         ).execute()
-        print(f"Created {name}")
+        print(f"Uploaded {name}")
 
-# 1) Overwrite/create latest.json
+# Upload latest.json and archive
 upload_or_update(LATEST, "latest.json", folder_id)
-
-# 2) Create dated archive if not present
 if not find_file(archive_name, folder_id):
-    media = MediaFileUpload(str(LATEST), mimetype="application/json", resumable=False)
-    drive.files().create(
-        body={"name": archive_name, "parents": [folder_id]},
-        media_body=media,
-        fields="id"
-    ).execute()
-    print(f"Archived {archive_name}")
+    upload_or_update(LATEST, archive_name, folder_id)
 else:
-    print(f"Archive {archive_name} already exists; skipping")
+    print(f"Archive {archive_name} already exists; skipping.")
