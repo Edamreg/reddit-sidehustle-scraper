@@ -6,7 +6,6 @@ SUBS = [
     "sidehustle",
     "passive_income",
     "WorkOnline",
-    "EntrepreneurRideAlong",
     "JustStart",
     "Entrepreneur",
     "SmallBusiness",
