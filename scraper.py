@@ -10,7 +10,8 @@ SUBS = [
     "JustStart",
     "Entrepreneur",
     "SmallBusiness",
-    "BeerMoney",
+    "BeerMoney"
+    "WorkOnline",
 ]
 LIMIT_PER_SUB = int(os.getenv("LIMIT_PER_SUB", "10"))  # top posts per sub
 SLEEP_BETWEEN_CALLS = float(os.getenv("SLEEP_BETWEEN_CALLS", "0.7"))  # be polite
@@ -57,7 +58,7 @@ def fetch_top_posts(sub, headers, limit=10):
         })
     return posts
 
-def fetch_top_level_comments(post_id, headers, limit=100):
+def fetch_top_level_comments(post_id, headers, limit=60):
     # depth=1 for top-level only, sort=top for most useful first
     url = f"https://oauth.reddit.com/comments/{post_id}"
     params = {"limit": str(limit), "depth": "1", "sort": "top"}
