@@ -61,7 +61,6 @@ jobs:
           pip install google-api-python-client>=2.137.0 google-auth>=2.33.0 google-auth-httplib2>=0.2.0
 
       - name: Upload to Google Drive
-        if: ${{ secrets.GDRIVE_CLIENT_SECRET_JSON != '' && secrets.GDRIVE_TOKEN_JSON != '' && secrets.GDRIVE_FOLDER_ID != '' }}
         env:
           GDRIVE_CLIENT_SECRET_JSON: ${{ secrets.GDRIVE_CLIENT_SECRET_JSON }}
           GDRIVE_TOKEN_JSON: ${{ secrets.GDRIVE_TOKEN_JSON }}
