@@ -60,10 +60,10 @@ jobs:
         run: |
           pip install google-api-python-client>=2.137.0 google-auth>=2.33.0 google-auth-httplib2>=0.2.0
 
-      - name: Upload latest.json + archive to Google Drive
-        if: env.HAS_GDRIVE == 'true'
+      - name: Upload to Google Drive
+        if: ${{ secrets.GDRIVE_CLIENT_SECRET_JSON != '' && secrets.GDRIVE_TOKEN_JSON != '' && secrets.GDRIVE_FOLDER_ID != '' }}
         env:
-          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          GDRIVE_CLIENT_SECRET_JSON: ${{ secrets.GDRIVE_CLIENT_SECRET_JSON }}
+          GDRIVE_TOKEN_JSON: ${{ secrets.GDRIVE_TOKEN_JSON }}
           GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
-        run: |
-          python scripts/upload_to_drive.py
+        run: python scripts/upload_to_drive.py
