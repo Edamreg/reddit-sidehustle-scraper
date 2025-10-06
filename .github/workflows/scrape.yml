@@ -52,12 +52,8 @@ jobs:
       # ---------- NEW: set a flag instead of using secrets.* in if: ----------
       - name: Detect Drive secrets
         run: |
-          if [ -n "${{ secrets.GCP_SA_KEY }}" ] && [ -n "${{ secrets.GDRIVE_FOLDER_ID }}" ]; then
-            echo "HAS_GDRIVE=true" >> "$GITHUB_ENV"
-          else
-            echo "HAS_GDRIVE=false" >> "$GITHUB_ENV"
-          fi
-          echo "HAS_GDRIVE is $HAS_GDRIVE"
+          echo "HAS_GDRIVE=${{ (secrets.GCP_SA_KEY != '' && secrets.GDRIVE_FOLDER_ID != '') && 'true' || 'false' }}" >> $GITHUB_ENV
+          echo "HAS_GDRIVE is set to: $HAS_GDRIVE"
 
       - name: Install Google Drive deps
         if: env.HAS_GDRIVE == 'true'
