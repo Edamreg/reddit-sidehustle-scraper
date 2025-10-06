@@ -1,0 +1,42 @@
+name: Scrape Reddit Top (Last 7 Days)
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    # Runs every Friday at 13:00 UTC (9:00 AM New York, DST permitting)
+    - cron: "0 13 * * FRI"
+
+permissions:
+  contents: write
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      - name: Run scraper
+        env:
+          REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
+          REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
+          USER_AGENT: ${{ secrets.USER_AGENT }}
+          LIMIT_PER_SUB: "10"
+          SLEEP_BETWEEN_CALLS: "0.7"
+        run: python scraper.py
+
+      - name: Commit & push data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/*.json
+          git commit -m "Update scraped feed" || echo "No changes to commit"
+          git push
