@@ -1,10 +1,12 @@
 name: Scrape Reddit Top (Last 7 Days)
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch: {}        # lets you run manually anytime
   schedule:
-    # Runs every Friday at 13:00 UTC (9:00 AM New York, DST permitting)
-    - cron: "0 13 * * FRI"
+    # 🔁 Run every day at 12:00 UTC (8:00 AM ET)
+    - cron: "0 12 * * *"
+    # 🕗 Run every Friday at 12:50 UTC (8:50 AM ET) so GPT has fresh data for 9 AM summary
+    - cron: "50 12 * * FRI"
 
 permissions:
   contents: write
