@@ -49,13 +49,23 @@ jobs:
           git commit -m "Update scraped feed" || echo "No changes to commit"
           git push
 
+      # ---------- NEW: set a flag instead of using secrets.* in if: ----------
+      - name: Detect Drive secrets
+        run: |
+          if [ -n "${{ secrets.GCP_SA_KEY }}" ] && [ -n "${{ secrets.GDRIVE_FOLDER_ID }}" ]; then
+            echo "HAS_GDRIVE=true" >> "$GITHUB_ENV"
+          else
+            echo "HAS_GDRIVE=false" >> "$GITHUB_ENV"
+          fi
+          echo "HAS_GDRIVE is $HAS_GDRIVE"
+
       - name: Install Google Drive deps
-        if: ${{ secrets.GCP_SA_KEY != '' && secrets.GDRIVE_FOLDER_ID != '' }}
+        if: env.HAS_GDRIVE == 'true'
         run: |
           pip install google-api-python-client>=2.137.0 google-auth>=2.33.0 google-auth-httplib2>=0.2.0
 
       - name: Upload latest.json + archive to Google Drive
-        if: ${{ secrets.GCP_SA_KEY != '' && secrets.GDRIVE_FOLDER_ID != '' }}
+        if: env.HAS_GDRIVE == 'true'
         env:
           GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
           GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
