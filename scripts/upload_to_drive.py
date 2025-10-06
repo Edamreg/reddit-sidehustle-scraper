@@ -25,8 +25,15 @@ date_str = (scraped_at or dt.datetime.utcnow().strftime("%Y-%m-%d")).split("T")[
 archive_name = f"reddit_top_week_{date_str}.json"
 
 def find_file(name, parent_id):
-    q = f"name = '{name.replace(\"'\",\"\\'\")}' and '{parent_id}' in parents and trashed = false"
-    res = drive.files().list(q=q, fields="files(id,name)").execute()
+    safe_name = name.replace("'", "\\'")
+    q = f"name = '{safe_name}' and '{parent_id}' in parents and trashed = false"
+    res = drive.files().list(
+        q=q,
+        fields="files(id,name,driveId,parents)",
+        includeItemsFromAllDrives=True,
+        supportsAllDrives=True,
+        corpora="allDrives"
+    ).execute()
     files = res.get("files", [])
     return files[0]["id"] if files else None
 
